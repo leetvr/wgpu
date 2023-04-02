@@ -1,3 +1,4 @@
+use log::info;
 use metal::{MTLFeatureSet, MTLGPUFamily, MTLLanguageVersion, MTLReadWriteTextureTier};
 use objc::{class, msg_send, sel, sel_impl};
 use parking_lot::Mutex;
@@ -777,6 +778,9 @@ impl super::PrivateCapabilities {
             F::SHADER_PRIMITIVE_INDEX,
             self.supports_shader_primitive_index,
         );
+
+        // TOOD: KR - should we be checking for a MTL language version?
+        features.set(F::PARTIALLY_BOUND_BINDING_ARRAY, true);
 
         features.set(
             F::TEXTURE_BINDING_ARRAY

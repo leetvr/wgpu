@@ -3,6 +3,7 @@ use wasm_bindgen_test::wasm_bindgen_test_configure;
 // All files containing tests
 mod common;
 
+mod bindless;
 mod regression {
     mod issue_3457;
 }
