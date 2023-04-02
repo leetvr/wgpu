@@ -757,14 +757,14 @@ impl crate::Device<super::Api> for super::Device {
                     }
                     wgt::BindingType::Sampler { .. } => {
                         let start = entry.resource_index as usize;
-                        let end = start + size as usize;
+                        let end = start + entry.count as usize;
                         bg.samplers
                             .extend(desc.samplers[start..end].iter().map(|samp| samp.as_raw()));
                         counter.samplers += size;
                     }
                     wgt::BindingType::Texture { .. } | wgt::BindingType::StorageTexture { .. } => {
                         let start = entry.resource_index as usize;
-                        let end = start + size as usize;
+                        let end = start + entry.count as usize;
                         bg.textures.extend(
                             desc.textures[start..end]
                                 .iter()
