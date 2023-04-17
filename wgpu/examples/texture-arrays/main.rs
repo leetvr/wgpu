@@ -78,7 +78,7 @@ impl framework::Example for Example {
         wgpu::Features::SAMPLED_TEXTURE_AND_STORAGE_BUFFER_ARRAY_NON_UNIFORM_INDEXING
     }
     fn required_features() -> wgpu::Features {
-        wgpu::Features::TEXTURE_BINDING_ARRAY | wgpu::Features::PARTIALLY_BOUND_BINDING_ARRAY
+        wgpu::Features::TEXTURE_BINDING_ARRAY
     }
     fn init(
         config: &wgpu::SurfaceConfiguration,
@@ -246,7 +246,7 @@ impl framework::Example for Example {
                         view_dimension: wgpu::TextureViewDimension::D2,
                         multisampled: false,
                     },
-                    count: NonZeroU32::new(8),
+                    count: NonZeroU32::new(2),
                 },
                 wgpu::BindGroupLayoutEntry {
                     binding: 1,
@@ -256,7 +256,7 @@ impl framework::Example for Example {
                         view_dimension: wgpu::TextureViewDimension::D2,
                         multisampled: false,
                     },
-                    count: NonZeroU32::new(8),
+                    count: NonZeroU32::new(2),
                 },
                 wgpu::BindGroupLayoutEntry {
                     binding: 2,
