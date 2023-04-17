@@ -3,7 +3,7 @@ mod framework;
 
 use bytemuck::{Pod, Zeroable};
 use std::num::{NonZeroU32, NonZeroU64};
-use wgpu::util::DeviceExt;
+use wgpu::{util::DeviceExt, Features};
 
 #[repr(C)]
 #[derive(Clone, Copy, Pod, Zeroable)]
@@ -235,6 +235,16 @@ impl framework::Example for Example {
 
         let sampler = device.create_sampler(&wgpu::SamplerDescriptor::default());
 
+        // In a bindless setup, we intentionally ask for more bindings than necessary.
+        let is_bindless = device
+            .features()
+            .contains(Features::PARTIALLY_BOUND_BINDING_ARRAY);
+        let texture_count = if is_bindless {
+            NonZeroU32::new(4)
+        } else {
+            NonZeroU32::new(2)
+        };
+
         let bind_group_layout = device.create_bind_group_layout(&wgpu::BindGroupLayoutDescriptor {
             label: Some("bind group layout"),
             entries: &[
@@ -246,7 +256,7 @@ impl framework::Example for Example {
                         view_dimension: wgpu::TextureViewDimension::D2,
                         multisampled: false,
                     },
-                    count: NonZeroU32::new(2),
+                    count: texture_count,
                 },
                 wgpu::BindGroupLayoutEntry {
                     binding: 1,
@@ -256,13 +266,13 @@ impl framework::Example for Example {
                         view_dimension: wgpu::TextureViewDimension::D2,
                         multisampled: false,
                     },
-                    count: NonZeroU32::new(2),
+                    count: texture_count,
                 },
                 wgpu::BindGroupLayoutEntry {
                     binding: 2,
                     visibility: wgpu::ShaderStages::FRAGMENT,
                     ty: wgpu::BindingType::Sampler(wgpu::SamplerBindingType::Filtering),
-                    count: NonZeroU32::new(2),
+                    count: texture_count,
                 },
                 wgpu::BindGroupLayoutEntry {
                     binding: 3,
@@ -436,6 +446,20 @@ fn texture_arrays_non_uniform() {
         height: 768,
         optional_features:
             wgpu::Features::SAMPLED_TEXTURE_AND_STORAGE_BUFFER_ARRAY_NON_UNIFORM_INDEXING,
+        base_test_parameters: framework::test_common::TestParameters::default(),
+        tolerance: 0,
+        max_outliers: 0,
+    });
+}
+
+#[test]
+#[wasm_bindgen_test::wasm_bindgen_test]
+fn texture_arrays_bindless() {
+    framework::test::<Example>(framework::FrameworkRefTest {
+        image_path: "/examples/texture-arrays/screenshot.png",
+        width: 1024,
+        height: 768,
+        optional_features: wgpu::Features::PARTIALLY_BOUND_BINDING_ARRAY,
         base_test_parameters: framework::test_common::TestParameters::default(),
         tolerance: 0,
         max_outliers: 0,

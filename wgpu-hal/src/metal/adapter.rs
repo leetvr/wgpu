@@ -1,4 +1,3 @@
-use log::info;
 use metal::{MTLFeatureSet, MTLGPUFamily, MTLLanguageVersion, MTLReadWriteTextureTier};
 use objc::{class, msg_send, sel, sel_impl};
 use parking_lot::Mutex;
