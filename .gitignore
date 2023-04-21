@@ -14,6 +14,7 @@ target/
 # IDE/Editor configuration files
 .vscode
 .idea
+*.code-workspace
 
 # Output from capture example
 wgpu/red.png
