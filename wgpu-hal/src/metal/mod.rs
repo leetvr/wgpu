@@ -613,6 +613,7 @@ pub struct BindGroup {
     buffers: Vec<BufferResource>,
     samplers: Vec<SamplerPtr>,
     textures: Vec<TexturePtr>,
+    fragment_argument_buffer: Option<BufferResource>,
 }
 
 unsafe impl Send for BindGroup {}

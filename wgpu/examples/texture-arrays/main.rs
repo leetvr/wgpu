@@ -272,7 +272,7 @@ impl framework::Example for Example {
                     binding: 2,
                     visibility: wgpu::ShaderStages::FRAGMENT,
                     ty: wgpu::BindingType::Sampler(wgpu::SamplerBindingType::Filtering),
-                    count: texture_count,
+                    count: NonZeroU32::new(2),
                 },
                 wgpu::BindGroupLayoutEntry {
                     binding: 3,
