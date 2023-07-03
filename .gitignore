@@ -15,6 +15,7 @@ target/
 # IDE/Editor configuration files
 .vscode
 .idea
+.zed
 
 # Output from capture example
 wgpu/red.png
