@@ -650,6 +650,14 @@ struct PipelineStageInfo {
     ///
     /// See [`device::CompiledShader::sized_bindings`] for more details.
     sized_bindings: Vec<naga::ResourceBinding>,
+
+    argument_buffer: Option<ArgumentBuffer>,
+}
+
+#[derive(Debug)]
+struct ArgumentBuffer {
+    encoder: metal::ArgumentEncoder,
+    buffer: metal::Buffer,
 }
 
 impl PipelineStageInfo {

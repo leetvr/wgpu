@@ -7,7 +7,7 @@ use std::{
     thread, time,
 };
 
-use super::conv;
+use super::{conv, ArgumentBuffer};
 use crate::auxil::map_naga_stage;
 
 type DeviceResult<T> = Result<T, crate::DeviceError>;
@@ -268,26 +268,24 @@ impl super::Device {
         &self.shared.device
     }
 
-    fn create_argument_buffer(
-        &self,
-        argument_encoder: &metal::ArgumentEncoder,
-    ) -> Option<metal::Buffer> {
-        let size = argument_encoder.encoded_length();
+    fn create_argument_buffer(&self, encoder: metal::ArgumentEncoder) -> Option<ArgumentBuffer> {
+        let size = encoder.encoded_length();
         if size == 0 {
             return None;
         }
 
         log::info!("Creating argument buffer of size: {size}");
-        let raw = self
+        let buffer = self
             .shared
             .device
             .lock()
             .new_buffer(size, MTLResourceOptions::empty());
         // TODO (KR): more meaningful label
-        raw.set_label("Argument buffer");
-        log::info!("Created argument buffer: {:?}", raw);
-        argument_encoder.set_argument_buffer(&raw, 0);
-        Some(raw)
+        buffer.set_label("Argument buffer");
+        log::info!("Created argument buffer: {:?}", buffer);
+        encoder.set_argument_buffer(&buffer, 0);
+
+        Some(ArgumentBuffer { encoder, buffer })
     }
 }
 
@@ -832,7 +830,7 @@ impl crate::Device<super::Api> for super::Device {
                 conv::map_primitive_topology(desc.primitive.topology);
 
             // Vertex shader
-            let (vs_lib, vs_info, vs_argument_encoder) = {
+            let (vs_lib, vs_info) = {
                 let vs = self.load_shader(
                     &desc.vertex_stage,
                     desc.layout,
@@ -848,22 +846,22 @@ impl crate::Device<super::Api> for super::Device {
                     );
                 }
 
+                // TODO(KR): bindings?
+                let argument_encoder = vs.function.new_argument_encoder(0);
+                let argument_buffer = self.create_argument_buffer(argument_encoder);
+
                 let info = super::PipelineStageInfo {
                     push_constants: desc.layout.push_constants_infos.vs,
                     sizes_slot: desc.layout.per_stage_map.vs.sizes_buffer,
                     sized_bindings: vs.sized_bindings,
+                    argument_buffer,
                 };
 
-                // TODO(KR): bindings?
-                let argument_encoder = vs.function.new_argument_encoder(0);
-
-                (vs.library, info, argument_encoder)
+                (vs.library, info)
             };
 
-            let vs_argument_buffer = self.create_argument_buffer(&vs_argument_encoder);
-
             // Fragment shader
-            let (fs_lib, fs_info, fs_argument_encoder) = match desc.fragment_stage {
+            let (fs_lib, fs_info) = match desc.fragment_stage {
                 Some(ref stage) => {
                     let fs = self.load_shader(
                         stage,
@@ -880,16 +878,18 @@ impl crate::Device<super::Api> for super::Device {
                         );
                     }
 
+                    // TODO(KR): bindings?
+                    let argument_encoder = fs.function.new_argument_encoder(0);
+                    let argument_buffer = self.create_argument_buffer(argument_encoder);
+
                     let info = super::PipelineStageInfo {
                         push_constants: desc.layout.push_constants_infos.fs,
                         sizes_slot: desc.layout.per_stage_map.fs.sizes_buffer,
                         sized_bindings: fs.sized_bindings,
+                        argument_buffer,
                     };
 
-                    // TODO(KR): bindings?
-                    let argument_encoder = fs.function.new_argument_encoder(0);
-
-                    (Some(fs.library), Some(info), Some(argument_encoder))
+                    (Some(fs.library), Some(info))
                 }
                 None => {
                     // TODO: This is a workaround for what appears to be a Metal validation bug
@@ -898,14 +898,8 @@ impl crate::Device<super::Api> for super::Device {
                         descriptor
                             .set_depth_attachment_pixel_format(metal::MTLPixelFormat::Depth32Float);
                     }
-                    (None, None, None)
+                    (None, None)
                 }
-            };
-
-            let fs_argument_buffer = if let Some(argument_encoder) = fs_argument_encoder.as_ref() {
-                self.create_argument_buffer(argument_encoder)
-            } else {
-                None
             };
 
             for (i, ct) in desc.color_targets.iter().enumerate() {
@@ -1085,6 +1079,8 @@ impl crate::Device<super::Api> for super::Device {
                 push_constants: desc.layout.push_constants_infos.cs,
                 sizes_slot: desc.layout.per_stage_map.cs.sizes_buffer,
                 sized_bindings: cs.sized_bindings,
+                // TODO (KR): argument buffers for CS?
+                argument_buffer: None,
             };
 
             if let Some(name) = desc.label {

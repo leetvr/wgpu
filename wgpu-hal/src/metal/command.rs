@@ -1,3 +1,5 @@
+use metal::MTLResourceUsage;
+
 use super::{conv, AsNative};
 use std::{borrow::Cow, mem, ops::Range};
 
@@ -453,6 +455,8 @@ impl crate::CommandEncoder<super::Api> for super::CommandEncoder {
         let bg_info = &layout.bind_group_infos[group_index as usize];
 
         if let Some(ref encoder) = self.state.render {
+            let fs_argument_buffer = self.state.stage_infos.fs.argument_buffer.as_ref();
+
             let mut changes_sizes_buffer = false;
             for index in 0..group.counters.vs.buffers {
                 let buf = &group.buffers[index as usize];
@@ -545,10 +549,24 @@ impl crate::CommandEncoder<super::Api> for super::CommandEncoder {
             }
             for index in 0..group.counters.fs.textures {
                 let res = group.textures[(group.counters.vs.textures + index) as usize];
-                encoder.set_fragment_texture(
-                    (bg_info.base_resource_indices.fs.textures + index) as u64,
-                    Some(res.as_native()),
-                );
+                if let Some(argument_buffer) = fs_argument_buffer {
+                    argument_buffer
+                        .encoder
+                        .set_texture(index as _, res.as_native());
+                }
+
+                // Though this method has been deprecated in 10.15, our minimum supported
+                // version is 10.13.
+                #[allow(deprecated)]
+                encoder.use_resource(res.as_native(), MTLResourceUsage::Read);
+                // encoder.set_fragment_texture(
+                //     (bg_info.base_resource_indices.fs.textures + index) as u64,
+                //     Some(res.as_native()),
+                // );
+            }
+
+            if let Some(argument_buffer) = fs_argument_buffer {
+                encoder.set_fragment_buffer(0, Some(&argument_buffer.buffer), 0);
             }
         }
 
