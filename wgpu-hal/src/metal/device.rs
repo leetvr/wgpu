@@ -1,3 +1,4 @@
+use metal::MTLResourceOptions;
 use parking_lot::Mutex;
 use std::{
     num::NonZeroU32,
@@ -265,6 +266,28 @@ impl super::Device {
 
     pub fn raw_device(&self) -> &Mutex<metal::Device> {
         &self.shared.device
+    }
+
+    fn create_argument_buffer(
+        &self,
+        argument_encoder: &metal::ArgumentEncoder,
+    ) -> Option<metal::Buffer> {
+        let size = argument_encoder.encoded_length();
+        if size == 0 {
+            return None;
+        }
+
+        log::info!("Creating argument buffer of size: {size}");
+        let raw = self
+            .shared
+            .device
+            .lock()
+            .new_buffer(size, MTLResourceOptions::empty());
+        // TODO (KR): more meaningful label
+        raw.set_label("Argument buffer");
+        log::info!("Created argument buffer: {:?}", raw);
+        argument_encoder.set_argument_buffer(&raw, 0);
+        Some(raw)
     }
 }
 
@@ -809,7 +832,7 @@ impl crate::Device<super::Api> for super::Device {
                 conv::map_primitive_topology(desc.primitive.topology);
 
             // Vertex shader
-            let (vs_lib, vs_info) = {
+            let (vs_lib, vs_info, vs_argument_encoder) = {
                 let vs = self.load_shader(
                     &desc.vertex_stage,
                     desc.layout,
@@ -831,11 +854,16 @@ impl crate::Device<super::Api> for super::Device {
                     sized_bindings: vs.sized_bindings,
                 };
 
-                (vs.library, info)
+                // TODO(KR): bindings?
+                let argument_encoder = vs.function.new_argument_encoder(0);
+
+                (vs.library, info, argument_encoder)
             };
 
+            let vs_argument_buffer = self.create_argument_buffer(&vs_argument_encoder);
+
             // Fragment shader
-            let (fs_lib, fs_info) = match desc.fragment_stage {
+            let (fs_lib, fs_info, fs_argument_encoder) = match desc.fragment_stage {
                 Some(ref stage) => {
                     let fs = self.load_shader(
                         stage,
@@ -858,7 +886,10 @@ impl crate::Device<super::Api> for super::Device {
                         sized_bindings: fs.sized_bindings,
                     };
 
-                    (Some(fs.library), Some(info))
+                    // TODO(KR): bindings?
+                    let argument_encoder = fs.function.new_argument_encoder(0);
+
+                    (Some(fs.library), Some(info), Some(argument_encoder))
                 }
                 None => {
                     // TODO: This is a workaround for what appears to be a Metal validation bug
@@ -867,8 +898,14 @@ impl crate::Device<super::Api> for super::Device {
                         descriptor
                             .set_depth_attachment_pixel_format(metal::MTLPixelFormat::Depth32Float);
                     }
-                    (None, None)
+                    (None, None, None)
                 }
+            };
+
+            let fs_argument_buffer = if let Some(argument_encoder) = fs_argument_encoder.as_ref() {
+                self.create_argument_buffer(argument_encoder)
+            } else {
+                None
             };
 
             for (i, ct) in desc.color_targets.iter().enumerate() {
