@@ -654,10 +654,10 @@ struct PipelineStageInfo {
     argument_buffer: Option<ArgumentBuffer>,
 }
 
-#[derive(Debug)]
+#[derive(Debug, Clone)]
 struct ArgumentBuffer {
-    encoder: metal::ArgumentEncoder,
-    buffer: metal::Buffer,
+    encoder: Arc<metal::ArgumentEncoder>,
+    buffer: Arc<metal::Buffer>,
 }
 
 impl PipelineStageInfo {
@@ -672,6 +672,7 @@ impl PipelineStageInfo {
         self.sizes_slot = other.sizes_slot;
         self.sized_bindings.clear();
         self.sized_bindings.extend_from_slice(&other.sized_bindings);
+        self.argument_buffer = other.argument_buffer.clone();
     }
 }
 

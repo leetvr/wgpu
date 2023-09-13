@@ -285,7 +285,10 @@ impl super::Device {
         log::info!("Created argument buffer: {:?}", buffer);
         encoder.set_argument_buffer(&buffer, 0);
 
-        Some(ArgumentBuffer { encoder, buffer })
+        Some(ArgumentBuffer {
+            encoder: Arc::new(encoder),
+            buffer: Arc::new(buffer),
+        })
     }
 }
 
@@ -870,6 +873,27 @@ impl crate::Device<super::Api> for super::Device {
                         naga::ShaderStage::Fragment,
                     )?;
 
+                    let mut uses_argument_buffer = false;
+                    let ep_index = stage
+                        .module
+                        .naga
+                        .module
+                        .entry_points
+                        .iter()
+                        .position(|ep| {
+                            ep.stage == naga::ShaderStage::Fragment && ep.name == stage.entry_point
+                        })
+                        .ok_or(crate::PipelineError::EntryPoint(
+                            naga::ShaderStage::Fragment,
+                        ))?;
+                    let ep_info = &stage.module.naga.info.get_entry_point(ep_index);
+                    for (var_handle, _) in stage.module.naga.module.global_variables.iter() {
+                        if !ep_info[var_handle].is_empty() {
+                            uses_argument_buffer = true;
+                            break;
+                        }
+                    }
+
                     descriptor.set_fragment_function(Some(&fs.function));
                     if self.shared.private_caps.supports_mutability {
                         Self::set_buffers_mutability(
@@ -879,8 +903,14 @@ impl crate::Device<super::Api> for super::Device {
                     }
 
                     // TODO(KR): bindings?
-                    let argument_encoder = fs.function.new_argument_encoder(0);
-                    let argument_buffer = self.create_argument_buffer(argument_encoder);
+                    let argument_buffer = if uses_argument_buffer {
+                        let argument_encoder = fs.function.new_argument_encoder(0);
+                        self.create_argument_buffer(argument_encoder)
+                    } else {
+                        None
+                    };
+
+                    log::debug!("ARGUMENT BUFFER?? {:?}", argument_buffer);
 
                     let info = super::PipelineStageInfo {
                         push_constants: desc.layout.push_constants_infos.fs,

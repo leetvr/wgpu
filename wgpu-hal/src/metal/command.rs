@@ -455,7 +455,14 @@ impl crate::CommandEncoder<super::Api> for super::CommandEncoder {
         let bg_info = &layout.bind_group_infos[group_index as usize];
 
         if let Some(ref encoder) = self.state.render {
+            let vs_argument_buffer = self.state.stage_infos.vs.argument_buffer.as_ref();
+            if let Some(argument_buffer) = vs_argument_buffer.as_ref() {
+                encoder.set_vertex_buffer(0, Some(&argument_buffer.buffer), 0);
+            }
             let fs_argument_buffer = self.state.stage_infos.fs.argument_buffer.as_ref();
+            if let Some(argument_buffer) = fs_argument_buffer.as_ref() {
+                encoder.set_fragment_buffer(0, Some(&argument_buffer.buffer), 0);
+            }
 
             let mut changes_sizes_buffer = false;
             for index in 0..group.counters.vs.buffers {
@@ -464,11 +471,16 @@ impl crate::CommandEncoder<super::Api> for super::CommandEncoder {
                 if let Some(dyn_index) = buf.dynamic_index {
                     offset += dynamic_offsets[dyn_index as usize] as wgt::BufferAddress;
                 }
-                encoder.set_vertex_buffer(
-                    (bg_info.base_resource_indices.vs.buffers + index) as u64,
-                    Some(buf.ptr.as_native()),
-                    offset,
-                );
+                if let Some(argument_buffer) = vs_argument_buffer {
+                    argument_buffer.encoder.set_buffer(
+                        (bg_info.base_resource_indices.vs.buffers + index) as u64,
+                        buf.ptr.as_native(),
+                        offset,
+                    );
+
+                    #[allow(deprecated)]
+                    encoder.use_resource(buf.ptr.as_native(), MTLResourceUsage::Read);
+                }
                 if let Some(size) = buf.binding_size {
                     let br = naga::ResourceBinding {
                         group: group_index,
@@ -559,14 +571,6 @@ impl crate::CommandEncoder<super::Api> for super::CommandEncoder {
                 // version is 10.13.
                 #[allow(deprecated)]
                 encoder.use_resource(res.as_native(), MTLResourceUsage::Read);
-                // encoder.set_fragment_texture(
-                //     (bg_info.base_resource_indices.fs.textures + index) as u64,
-                //     Some(res.as_native()),
-                // );
-            }
-
-            if let Some(argument_buffer) = fs_argument_buffer {
-                encoder.set_fragment_buffer(0, Some(&argument_buffer.buffer), 0);
             }
         }
 
@@ -696,6 +700,15 @@ impl crate::CommandEncoder<super::Api> for super::CommandEncoder {
         }
 
         let encoder = self.state.render.as_ref().unwrap();
+        if let Some(argument_buffer) = pipeline
+            .fs_info
+            .as_ref()
+            .map(|i| i.argument_buffer.as_ref())
+            .flatten()
+        {
+            encoder.set_fragment_buffer(0, Some(&argument_buffer.buffer), 0);
+        }
+
         encoder.set_render_pipeline_state(&pipeline.raw);
         encoder.set_front_facing_winding(pipeline.raw_front_winding);
         encoder.set_cull_mode(pipeline.raw_cull_mode);
