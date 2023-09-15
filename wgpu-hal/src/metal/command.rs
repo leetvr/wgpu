@@ -453,16 +453,27 @@ impl crate::CommandEncoder<super::Api> for super::CommandEncoder {
         dynamic_offsets: &[wgt::DynamicOffset],
     ) {
         let bg_info = &layout.bind_group_infos[group_index as usize];
+        let vs_map = &layout.per_stage_map.fs.resources;
+        let fs_map = &layout.per_stage_map.fs.resources;
 
         if let Some(ref encoder) = self.state.render {
-            let vs_argument_buffer = self.state.stage_infos.vs.argument_buffer.as_ref();
-            if let Some(argument_buffer) = vs_argument_buffer.as_ref() {
-                encoder.set_vertex_buffer(0, Some(&argument_buffer.buffer), 0);
+            let Some(vs_argument_buffer) = self.state.stage_infos.vs.argument_buffer.as_ref() else { return };
+            encoder.set_vertex_buffer(0, Some(&vs_argument_buffer.buffer), 0);
+
+            let Some(fs_argument_buffer) = self.state.stage_infos.fs.argument_buffer.as_ref() else { return};
+            encoder.set_fragment_buffer(0, Some(&fs_argument_buffer.buffer), 0);
+
+            for (binding, resource) in vs_map {
+                let id = binding.binding;
             }
-            let fs_argument_buffer = self.state.stage_infos.fs.argument_buffer.as_ref();
-            if let Some(argument_buffer) = fs_argument_buffer.as_ref() {
-                encoder.set_fragment_buffer(0, Some(&argument_buffer.buffer), 0);
-            }
+
+            // TODO:
+            // We need a way of consistently IDing the members of the argument buffer betweeen
+            // wgpu and naga. There are a couple of different options here
+            //
+            // 1. We just use the same iteration order. This is easy and fun!
+            // 2. The wgpu side determines the index in advance and passes it down for naga to read.
+            //    This would require a little bit of messing around, but should be possible.
 
             let mut changes_sizes_buffer = false;
             for index in 0..group.counters.vs.buffers {
@@ -471,16 +482,14 @@ impl crate::CommandEncoder<super::Api> for super::CommandEncoder {
                 if let Some(dyn_index) = buf.dynamic_index {
                     offset += dynamic_offsets[dyn_index as usize] as wgt::BufferAddress;
                 }
-                if let Some(argument_buffer) = vs_argument_buffer {
-                    argument_buffer.encoder.set_buffer(
-                        (bg_info.base_resource_indices.vs.buffers + index) as u64,
-                        buf.ptr.as_native(),
-                        offset,
-                    );
+                vs_argument_buffer.encoder.set_buffer(
+                    buf.binding_location as _,
+                    buf.ptr.as_native(),
+                    offset,
+                );
 
-                    #[allow(deprecated)]
-                    encoder.use_resource(buf.ptr.as_native(), MTLResourceUsage::Read);
-                }
+                #[allow(deprecated)]
+                encoder.use_resource(buf.ptr.as_native(), MTLResourceUsage::Read);
                 if let Some(size) = buf.binding_size {
                     let br = naga::ResourceBinding {
                         group: group_index,
@@ -539,33 +548,31 @@ impl crate::CommandEncoder<super::Api> for super::CommandEncoder {
 
             for index in 0..group.counters.vs.samplers {
                 let res = group.samplers[index as usize];
-                encoder.set_vertex_sampler_state(
+                vs_argument_buffer.encoder.set_sampler_state(
                     (bg_info.base_resource_indices.vs.samplers + index) as u64,
-                    Some(res.as_native()),
+                    res.as_native(),
                 );
             }
             for index in 0..group.counters.fs.samplers {
                 let res = group.samplers[(group.counters.vs.samplers + index) as usize];
-                encoder.set_fragment_sampler_state(
+                fs_argument_buffer.encoder.set_sampler_state(
                     (bg_info.base_resource_indices.fs.samplers + index) as u64,
-                    Some(res.as_native()),
+                    res.as_native(),
                 );
             }
 
             for index in 0..group.counters.vs.textures {
                 let res = group.textures[index as usize];
-                encoder.set_vertex_texture(
+                vs_argument_buffer.encoder.set_texture(
                     (bg_info.base_resource_indices.vs.textures + index) as u64,
-                    Some(res.as_native()),
+                    res.as_native(),
                 );
             }
             for index in 0..group.counters.fs.textures {
                 let res = group.textures[(group.counters.vs.textures + index) as usize];
-                if let Some(argument_buffer) = fs_argument_buffer {
-                    argument_buffer
-                        .encoder
-                        .set_texture(index as _, res.as_native());
-                }
+                let id = fs_argument_buffer
+                    .encoder
+                    .set_texture(index as _, res.as_native());
 
                 // Though this method has been deprecated in 10.15, our minimum supported
                 // version is 10.13.

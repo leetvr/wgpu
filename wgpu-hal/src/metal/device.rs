@@ -716,6 +716,14 @@ impl crate::Device<super::Api> for super::Device {
     }
     unsafe fn destroy_pipeline_layout(&self, _pipeline_layout: super::PipelineLayout) {}
 
+    // TODO:
+    //
+    // - Instead of splitting bindings by pipeline type and resource type, instead collect them into a single array of enums
+    // - This makes is much simpler to reference them as we encode onto the argument buffer.
+    //
+    // Questions:
+    // - Is this performant? It probably should be since there'd be cache-locality
+    // - Is there something that this code is doing for us that I don't understand?
     unsafe fn create_bind_group(
         &self,
         desc: &crate::BindGroupDescriptor<super::Api>,
